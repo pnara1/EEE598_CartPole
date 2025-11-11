@@ -68,24 +68,39 @@ for episode in range(MAX_EPISODES):
         #4 - train agent 
         #if not enough samples for trainning, train randomly until enough samples
         if len(agent.replay_buffer) >= BATCH_SIZE:
-            agent.train()
+            agent.train(steps)
 
         #5 - updates
         state = next_state
         steps += 1
+        agent.update_noise_std(episode)
+        
         # print(f"Episode {episode+1}: step_reward={reward:.2f}, Steps={steps}, Pole Angle = {pole_angle_rad:.2f}, Pole Angle={pole_angle_deg:.2f} deg")
 
-    print(f"Episode {episode+1} finished with reward {episode_reward} in {steps} steps.")
-    print(f"actor loss {agent.final_actor_loss}, critic loss {agent.final_critic_loss}")
-    sleep(2)
-    
-    # Log episode reward
-    reward_history.append(episode_reward)
-    # Print running average every 10 episodes
-    if (episode + 1) % 10 == 0:
-        avg_reward = np.mean(reward_history[-10:])
-        print(f"Average reward (last 10 episodes): {avg_reward:.2f}")
+    with torch.no_grad():
+        # sample a batch of transitions to compute Q-value stats
+        if len(agent.replay_buffer) >= BATCH_SIZE:
+            s, a, r, s_, done = agent.replay_buffer.sample()
 
+            #3 - convert to tensors for nn processign
+            state = torch.FloatTensor(s)
+            action = torch.FloatTensor(a)
+            reward = torch.FloatTensor(r)#.unsqueeze(1)
+            next_state = torch.FloatTensor(s_)
+            done = torch.FloatTensor(done)#.unsqueeze(1)
+            q_values = agent.critic(state, action)
+            q_min = q_values.min().item()
+            q_max = q_values.max().item()
+            q_mean = q_values.mean().item()
+        else:
+            q_min = q_max = q_mean = float('nan')
+
+    print(f"Episode {episode+1} finished: Reward={episode_reward:.2f}, "
+          f"Actor loss={agent.final_actor_loss:.3f}, Critic loss={agent.final_critic_loss:.3f}, "
+          f"Q_min={q_min:.2f}, Q_max={q_max:.2f}, Q_mean={q_mean:.2f}"
+          f"Noise_std={agent.noise_std:.3f}")
+    
+    sleep(0.5)
     
 
 
@@ -107,7 +122,8 @@ if len(reward_history) > 0:
     plt.grid(True)
     plt.tight_layout()
     plt.show()
-    plt.savefig('episode_rewards.png')
+    plot_name = f"{MAX_EPISODES}_episode_rewards_seed_{seed}_actorlr_{ACTOR_LR}_criticlr_{CRITIC_LR}_tau_{TAU}_batchsize_{BATCH_SIZE}_buffersize_{BUFFER_SIZE}.png"
+    plt.savefig(plot_name)
 # while not time_step.last():
 #     action = np.random.uniform(action_spec.minimum,
 #                                action_spec.maximum,

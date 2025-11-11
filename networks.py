@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import random
 import numpy as np
 from collections import deque
-from config import ACTOR_LR, CRITIC_LR, TAU, GAMMA, BUFFER_SIZE, BATCH_SIZE, OPTIMIZER, HIDDEN_LAYERS, NOISE_TYPE, EXPL_NOISE
+from config import *
 
 
 class ReplayBuffer:
@@ -78,6 +78,7 @@ class DDPG_Agent:
         #for stats
         self.final_actor_loss = 0
         self.final_critic_loss = 0
+        self.final_q_value = 0
 
         self.actor = Actor(state_dim, action_dim)
         self.target_actor = Actor(state_dim, action_dim)
@@ -94,7 +95,13 @@ class DDPG_Agent:
         self.replay_buffer = ReplayBuffer(buffer_size=BUFFER_SIZE, batch_size=BATCH_SIZE)
 
         if NOISE_TYPE == 'Gaussian':
-            self.noise_std = 0.1 #standard deviation of Gaussian noise for exploration
+            self.noise_std = EXPL_NOISE #standard deviation of Gaussian noise for exploration
+
+    def update_noise_std(self, episode):
+        noise_start = 0.2
+        noise_end = 0.05
+        decay_episodes = 300
+        self.noise_std = max(noise_end, noise_start - (noise_start - noise_end) * (episode / decay_episodes))
 
 
     #given env state, return action 
@@ -106,7 +113,7 @@ class DDPG_Agent:
             action += np.random.normal(0, self.noise_std, size=self.action_dim)
         return np.clip(action, -1, 1) #return valid action within range of DM_control cartpole env
     
-    def train(self):
+    def train(self, step):
         #1 - check if enough samples in replay buffer
         if len(self.replay_buffer) < BATCH_SIZE:
             return
@@ -151,10 +158,12 @@ class DDPG_Agent:
         self.actor_optimizer.step()
 
         #10 - soft update target networks
-        for target_param, param in zip(self.target_critic.parameters(), self.critic.parameters()):
-            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
-        for target_param, param in zip(self.target_actor.parameters(), self.actor.parameters()):
-            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+        if (step % C_UPDATE) == 0:
+            for target_param, param in zip(self.target_critic.parameters(), self.critic.parameters()):
+                target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+        if (step % A_UPDATE) == 0:
+            for target_param, param in zip(self.target_actor.parameters(), self.actor.parameters()):
+                target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
         
         
