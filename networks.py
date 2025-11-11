@@ -2,6 +2,10 @@ import os, sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import random
+import numpy as np
+from collections import deque
+from config import ACTOR_LR, CRITIC_LR, TAU, BUFFER_SIZE, BATCH_SIZE, OPTIMIZER, HIDDEN_LAYERS
 
 
 class ReplayBuffer:
@@ -27,14 +31,34 @@ class ReplayBuffer:
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(Actor, self).__init__()
-        self.fc1 = nn.Linear(state_dim, X)
-        self.fc2 = nn.Linear(X, Y)
-        self.fc3 = nn.Linear(Y, action_dim)
+        self.fc1 = nn.Linear(state_dim, HIDDEN_LAYERS[0])
+        self.fc2 = nn.Linear(HIDDEN_LAYERS[0], HIDDEN_LAYERS[1])
+        self.fc3 = nn.Linear(HIDDEN_LAYERS[1], action_dim)
 
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(Critic, self).__init__()
-        self.fc1 = nn.Linear(state_dim + action_dim, X)
-        self.fc2 = nn.Linear(X, Y)
-        self.fc3 = nn.Linear(Y, 1)
+        self.fc1 = nn.Linear(state_dim + action_dim, HIDDEN_LAYERS[0])
+        self.fc2 = nn.Linear(HIDDEN_LAYERS[0], HIDDEN_LAYERS[1])
+        self.fc3 = nn.Linear(HIDDEN_LAYERS[1], 1)
+
+class DDPG_Agent:
+    def __init__(self, state_dim, action_dim, actor_lr=ACTOR_LR, critic_lr=CRITIC_LR):
+        self.actor = Actor(state_dim, action_dim)
+        self.target_actor = Actor(state_dim, action_dim)
+        self.critic = Critic(state_dim, action_dim)
+        self.target_critic = Critic(state_dim, action_dim)
+
+        if OPTIMIZER == 'Adam':
+            self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
+            self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=critic_lr)
+        
+        self.replay_buffer = ReplayBuffer(BUFFER_SIZE, BATCH_SIZE)
+        
+        self.update_targets(tau=1.0)
+
+        def update_targets(self):
+            #soft update function
+            for target_param, param in zip(self.target_actor.parameters(), self.actor.parameters()):
+                target_param.data.copy_(TAU * param.data + (1 - TAU) * target_param.data)

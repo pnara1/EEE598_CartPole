@@ -1,10 +1,22 @@
+import os, sys
+
 from dm_control import suite
 import numpy as np 
 from dm_control import viewer
 import matplotlib.pyplot as plt
 import numpy as np
+from networks import Actor, Critic, ReplayBuffer, DDPG_Agent
+from config import *
 
+seed = sys.argv[1] if len(sys.argv > 0) else 0
+print(f"Using Seed: {seed}")
+
+#set seed for reproducibility
+np.random.seed(seed)
+
+#Start environment/episode
 env = suite.load(domain_name="cartpole", task_name="balance")
+agent = DDPG_Agent(state_dim=4, action_dim=1)
 
 time_step = env.reset()
 done = False
