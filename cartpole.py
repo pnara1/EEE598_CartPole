@@ -62,6 +62,8 @@ for episode in range(MAX_EPISODES):
         pole_angle_deg = pole_angle_rad * 180 / math.pi
 
 
+
+
         #3 - store transition in replay buffer
         agent.replay_buffer.push((state, action, reward, next_state, done))
 
@@ -69,12 +71,13 @@ for episode in range(MAX_EPISODES):
         #if not enough samples for trainning, train randomly until enough samples
         if len(agent.replay_buffer) >= BATCH_SIZE:
             agent.train(steps)
-
+        else: 
+            print("Filling Replay Buffer...")
         #5 - updates
         state = next_state
         steps += 1
         agent.update_noise_std(episode)
-        
+
         # print(f"Episode {episode+1}: step_reward={reward:.2f}, Steps={steps}, Pole Angle = {pole_angle_rad:.2f}, Pole Angle={pole_angle_deg:.2f} deg")
 
     with torch.no_grad():
@@ -97,8 +100,12 @@ for episode in range(MAX_EPISODES):
 
     print(f"Episode {episode+1} finished: Reward={episode_reward:.2f}, "
           f"Actor loss={agent.final_actor_loss:.3f}, Critic loss={agent.final_critic_loss:.3f}, "
-          f"Q_min={q_min:.2f}, Q_max={q_max:.2f}, Q_mean={q_mean:.2f}"
+          f"Q_min={q_min:.2f}, Q_max={q_max:.2f}, Q_mean={q_mean:.2f}, "
           f"Noise_std={agent.noise_std:.3f}")
+    
+    reward_history.append(episode_reward)
+    episode_lengths.append(steps)
+    loss_history.append((agent.final_actor_loss, agent.final_critic_loss))
     
     sleep(0.5)
     

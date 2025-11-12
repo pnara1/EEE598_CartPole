@@ -41,14 +41,14 @@ class Actor(nn.Module):
         super(Actor, self).__init__()
         #input state, output action
         self.fc1 = nn.Linear(state_dim, HIDDEN_LAYERS[0])
-        self.fc2 = nn.Linear(HIDDEN_LAYERS[0], HIDDEN_LAYERS[1])
-        self.fc3 = nn.Linear(HIDDEN_LAYERS[1], action_dim)
+        # self.fc2 = nn.Linear(HIDDEN_LAYERS[0], HIDDEN_LAYERS[1])
+        self.fc2 = nn.Linear(HIDDEN_LAYERS[0], action_dim)
 
     def forward(self, state):
         #relu activation for hidden layers (faster for non-saturated gradients, cheaper computationally)
         x = nn.ReLU()(self.fc1(state))
-        x = nn.ReLU()(self.fc2(x))
-        return nn.Tanh()(self.fc3(x)) #action range of cartpole is [-1, 1], so tanh activation
+        # x = nn.ReLU()(self.fc2(x))
+        return nn.Tanh()(self.fc2(x)) #action range of cartpole is [-1, 1], so tanh activation
 
 
 class Critic(nn.Module):
@@ -56,15 +56,15 @@ class Critic(nn.Module):
         super(Critic, self).__init__()
         #input state-action pair, output Q-value
         self.fc1 = nn.Linear(state_dim + action_dim, HIDDEN_LAYERS[0])
-        self.fc2 = nn.Linear(HIDDEN_LAYERS[0], HIDDEN_LAYERS[1])
-        self.fc3 = nn.Linear(HIDDEN_LAYERS[1], 1)
+        # self.fc2 = nn.Linear(HIDDEN_LAYERS[0], HIDDEN_LAYERS[1])
+        self.fc2 = nn.Linear(HIDDEN_LAYERS[0], 1)
 
     def forward(self, state, action):
         #relu adds non-linearity, no tanh on output bc Q-value has no range restriction
         x = torch.cat([state, action], dim=-1)
         x = nn.ReLU()(self.fc1(x))
-        x = nn.ReLU()(self.fc2(x))
-        return self.fc3(x) #no tanh bc its for Q-value
+        # x = nn.ReLU()(self.fc2(x))
+        return self.fc2(x) #no tanh bc its for Q-value
 
 class DDPG_Agent:
     def __init__(self, state_dim, action_dim, actor_lr=ACTOR_LR, critic_lr=CRITIC_LR, gamma=GAMMA, tau=TAU):
@@ -131,7 +131,9 @@ class DDPG_Agent:
         with torch.no_grad(): #save computation for unnecessary gradient calcs
             next_action = self.target_actor(next_state)
             target_Q = self.target_critic(next_state, next_action)
+            # target_Q = torch.clamp(target_Q, min=-50, max=50) #avoid extreme Q-values
             target_Q = reward + (1 - done) * self.gamma * target_Q #r_t + gamma * Q(s', a')
+            
 
         #5 - compute current Q-values from critic
         current_Q = self.critic(state, action)
@@ -144,24 +146,25 @@ class DDPG_Agent:
         #7 - update critic network - standard backprop
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
         self.critic_optimizer.step()
 
-        #8 - compute actor loss (policy gradient)
-        self.actor_optimizer.zero_grad()
-        actor_chosen_action = self.actor(state)
-        actor_loss = -self.critic(state, actor_chosen_action).mean() #maximize Q
-        self.final_actor_loss = actor_loss.item()
-        # print("Actor loss:", actor_loss.item())
+        if (step % A_UPDATE) == 0:
+            #8 - compute actor loss (policy gradient)
+            self.actor_optimizer.zero_grad()
+            actor_chosen_action = self.actor(state)
+            actor_loss = -self.critic(state, actor_chosen_action).mean() #maximize Q
+            self.final_actor_loss = actor_loss.item()
+            # print("Actor loss:", actor_loss.item())
 
-        #9 - update actor network
-        actor_loss.backward()
-        self.actor_optimizer.step()
+            #9 - update actor network
+            actor_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
+            self.actor_optimizer.step()
 
-        #10 - soft update target networks
-        if (step % C_UPDATE) == 0:
+            #10 - soft update target networks
             for target_param, param in zip(self.target_critic.parameters(), self.critic.parameters()):
                 target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
-        if (step % A_UPDATE) == 0:
             for target_param, param in zip(self.target_actor.parameters(), self.actor.parameters()):
                 target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
