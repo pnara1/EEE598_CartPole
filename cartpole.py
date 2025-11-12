@@ -129,7 +129,7 @@ if len(reward_history) > 0:
     plt.grid(True)
     plt.tight_layout()
     plt.show()
-    plot_name = f"{MAX_EPISODES}_episode_rewards_seed_{seed}_actorlr_{ACTOR_LR}_criticlr_{CRITIC_LR}_tau_{TAU}_batchsize_{BATCH_SIZE}_buffersize_{BUFFER_SIZE}.png"
+    plot_name = f"by2softupdate_{MAX_EPISODES}_episode_rewards_seed_{seed}_actorlr_{ACTOR_LR}_criticlr_{CRITIC_LR}_tau_{TAU}_batchsize_{BATCH_SIZE}_buffersize_{BUFFER_SIZE}.png"
     plt.savefig(plot_name)
 # while not time_step.last():
 #     action = np.random.uniform(action_spec.minimum,
