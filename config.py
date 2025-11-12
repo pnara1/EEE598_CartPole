@@ -17,7 +17,7 @@ MAX_STEPS = 1000 #predefined by env, but can be overwritten
 A_UPDATE = 2 #how often to update actor network (1 = every timestep)
 C_UPDATE = 1
 
-EXPL_NOISE = 0.2
+EXPL_NOISE = 0.3
 NOISE_TYPE = 'Gaussian' #'OU'
 
 OPTIMIZER = 'Adam'
