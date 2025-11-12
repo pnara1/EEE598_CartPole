@@ -287,3 +287,4 @@ class TD3_Agent:
             for target_param, param in zip(self.target_actor.parameters(), self.actor.parameters()):
                 target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
         
+# https://openreview.net/pdf?id=SyZipzbCb
