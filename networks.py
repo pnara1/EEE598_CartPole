@@ -288,3 +288,5 @@ class TD3_Agent:
                 target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
         
 # https://openreview.net/pdf?id=SyZipzbCb
+
+#https://github.com/AdithyaR7/Deep-RL-Cart-Pole
