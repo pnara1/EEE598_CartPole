@@ -8,28 +8,16 @@ import math
 import random
 import torch
 from time import sleep
-from networks import Actor, Critic, ReplayBuffer, DDPG_Agent
+from networks import Actor, Critic, ReplayBuffer, DDPG_Agent, TD3_Agent
 from config import *
 
-seed = int(sys.argv[1]) if len(sys.argv) > 0 else 0
+seed = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 print(f"Using Seed: {seed}")
 
 #set seed for reproducibility
 np.random.seed(seed)
 torch.manual_seed(seed)
 random.seed(seed)
-
-#Start environment/episode
-env = suite.load(domain_name="cartpole", task_name="balance")
-agent = DDPG_Agent(state_dim=4, action_dim=1)
-
-
-
-#stats for logging and plotting
-reward_history = []
-episode_lengths = []
-loss_history = []
-reward_history_eval = []
 
 def get_state(time_step):
     obs = time_step.observation
@@ -41,6 +29,39 @@ def get_state(time_step):
     return np.array([cart_position, pole_angle, cart_vel, pole_ang_vel])
 
 
+def evaluate_policy(env, agent, episodes=5):
+    total = 0.0
+    for _ in range(episodes):
+        ts = env.reset()
+        s = get_state(ts)
+        done = False
+        steps = 0
+        ep_ret = 0.0
+        while not done and steps < MAX_STEPS:
+            a = agent.select_action(s, noise=False)  # <- NO NOISE
+            ts = env.step(a)
+            s = get_state(ts)
+            ep_ret += ts.reward * REWARD_SCALE
+            done = ts.last()
+            steps += 1
+        total += ep_ret
+    return total / episodes
+
+
+#Start environment/episode
+env = suite.load(domain_name="cartpole", task_name="balance", task_kwargs={'random': seed})
+# agent = DDPG_Agent(state_dim=4, action_dim=1)
+agent = TD3_Agent(state_dim=4, action_dim=1)
+
+
+#stats for logging and plotting
+reward_history = []
+episode_lengths = []
+loss_history = []
+reward_history_eval = []
+
+global_step = 0
+
 for episode in range(MAX_EPISODES):
     time_step = env.reset()
     observation = time_step.observation
@@ -48,6 +69,7 @@ for episode in range(MAX_EPISODES):
     done = False
     steps = 0
     episode_reward = 0
+    # agent.update_noise_std(episode)
     while not done and steps < MAX_STEPS:
         #1 - select action
         action = agent.select_action(state) # actor selects action based on curr state
@@ -55,7 +77,7 @@ for episode in range(MAX_EPISODES):
         #2 - step environment
         time_step = env.step(action)
         next_state = get_state(time_step) 
-        reward = time_step.reward #env defined reward 
+        reward = time_step.reward * REWARD_SCALE #env defined reward 
         episode_reward += reward
         done = time_step.last() #env defined done signal
         pole_angle_rad = next_state[1]
@@ -69,14 +91,13 @@ for episode in range(MAX_EPISODES):
 
         #4 - train agent 
         #if not enough samples for trainning, train randomly until enough samples
-        if len(agent.replay_buffer) >= BATCH_SIZE:
-            agent.train(steps)
-        else: 
-            print("Filling Replay Buffer...")
+        agent.train(global_step)
+
         #5 - updates
         state = next_state
         steps += 1
-        agent.update_noise_std(episode)
+        global_step += 1
+    
 
         # print(f"Episode {episode+1}: step_reward={reward:.2f}, Steps={steps}, Pole Angle = {pole_angle_rad:.2f}, Pole Angle={pole_angle_deg:.2f} deg")
 
@@ -88,9 +109,9 @@ for episode in range(MAX_EPISODES):
             #3 - convert to tensors for nn processign
             state = torch.FloatTensor(s)
             action = torch.FloatTensor(a)
-            reward = torch.FloatTensor(r)#.unsqueeze(1)
+            reward = torch.FloatTensor(r)
             next_state = torch.FloatTensor(s_)
-            done = torch.FloatTensor(done)#.unsqueeze(1)
+            done = torch.FloatTensor(done)
             q_values = agent.critic(state, action)
             q_min = q_values.min().item()
             q_max = q_values.max().item()
@@ -98,6 +119,10 @@ for episode in range(MAX_EPISODES):
         else:
             q_min = q_max = q_mean = float('nan')
 
+    if (episode + 1) % 10 == 0:
+        eval_ret = evaluate_policy(env, agent, episodes=5)
+        print(f"[EVAL] Episode {episode+1}: avg return (no noise) = {eval_ret:.2f}")
+ 
     print(f"Episode {episode+1} finished: Reward={episode_reward:.2f}, "
           f"Actor loss={agent.final_actor_loss:.3f}, Critic loss={agent.final_critic_loss:.3f}, "
           f"Q_min={q_min:.2f}, Q_max={q_max:.2f}, Q_mean={q_mean:.2f}, "
