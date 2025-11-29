@@ -145,17 +145,33 @@ for episode in range(MAX_EPISODES):
 # print("Initial time step:", time_step)
 # Plot episode rewards after training
 if len(reward_history) > 0:
-    plt.figure(figsize=(10,5))
-    plt.plot(reward_history, label='Episode Reward')
-    plt.xlabel('Episode')
-    plt.ylabel('Reward')
-    plt.title('Episode Reward Over Time')
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-    plot_name = f"by2softupdate_{MAX_EPISODES}_episode_rewards_seed_{seed}_actorlr_{ACTOR_LR}_criticlr_{CRITIC_LR}_tau_{TAU}_batchsize_{BATCH_SIZE}_buffersize_{BUFFER_SIZE}.png"
-    plt.savefig(plot_name)
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.plot(reward_history, label='Episode Reward')
+    ax.set_xlabel('Episode')
+    ax.set_ylabel('Reward')
+    ax.set_title(f'Episode Reward Over Time (seed={seed})')
+    ax.legend()
+    ax.grid(True)
+
+    plot_name = (
+        f"by2softupdate_{MAX_EPISODES}_episode_rewards_seed_{seed}"
+        f"_actorlr_{ACTOR_LR}_criticlr_{CRITIC_LR}"
+        f"_tau_{TAU}_batchsize_{BATCH_SIZE}_buffersize_{BUFFER_SIZE}.png"
+    )
+    
+
+    # 👉 Save BEFORE showing
+    fig.tight_layout()
+    fig.savefig(plot_name, bbox_inches='tight')
+
+    # Optional, for interactive use
+    # plt.show()
+
+    plt.close(fig)  # free memory / avoid reusing the same figure
+    reward_history_arr = np.array(reward_history, dtype=np.float32)
+    np.save(f"logs/seed{seed}/train_rewards.npy", reward_history_arr)     
+torch.save(agent.actor.state_dict(), f"logs/seed{seed}/actor.pth")
+
 # while not time_step.last():
 #     action = np.random.uniform(action_spec.minimum,
 #                                action_spec.maximum,
